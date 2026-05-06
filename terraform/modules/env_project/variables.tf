@@ -19,7 +19,7 @@ variable "billing_account_id" {
 variable "folder_id" {
   type        = string
   default     = null
-  description = "ID numérico de carpeta GCP bajo la que crear el proyecto (sin prefijo folders/). Mutuamente excluyente con org_id."
+  description = "ID numérico de carpeta GCP bajo la que crear el proyecto (sin prefijo folders/)."
 }
 
 variable "org_id" {
