@@ -44,8 +44,8 @@ env:
   TF_INPUT: "0"
 
 jobs:
-  terraform:
-    name: "Terraform (${{ matrix.stack }})"
+  terraform_push:
+    name: "Terraform apply (${{ matrix.stack }})"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -55,9 +55,7 @@ jobs:
       matrix:
         stack: [dev, qa, prd]
     environment: ${{ matrix.stack }}
-    if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.stack == matrix.stack)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     defaults:
       run:
@@ -124,13 +122,90 @@ jobs:
         run: terraform validate
 
       - name: Terraform plan
-        if: |
-          github.event_name == 'workflow_dispatch' &&
-          github.event.inputs.terraform_action == 'plan'
+        if: false
         run: terraform plan -no-color -input=false
 
       - name: Terraform apply
-        if: |
-          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-          (github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply')
+        if: true
+        run: terraform apply -auto-approve -no-color -input=false
+
+  terraform_manual:
+    name: "Terraform (${{ github.event.inputs.stack }})"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ github.event.inputs.stack }}
+    if: github.event_name == 'workflow_dispatch'
+
+    defaults:
+      run:
+        working-directory: terraform/environments/${{ github.event.inputs.stack }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Comprobar TF_STATE_BUCKET
+        run: |
+          if [[ -z "${{ vars.TF_STATE_BUCKET }}" ]]; then
+            echo "::error::Define la variable de repositorio TF_STATE_BUCKET."
+            exit 1
+          fi
+
+      - name: Escribir terraform.tfvars
+        env:
+          TFVARS_BLOB: ${{ secrets.TF_STACK_TFVARS }}
+          TF_BILLING: ${{ secrets.TF_BILLING_ACCOUNT_ID }}
+          TF_FOLDER: ${{ vars.TF_GCP_FOLDER_ID }}
+          TF_ORG: ${{ vars.TF_GCP_ORG_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${TFVARS_BLOB:-}" ]]; then
+            printf '%s\n' "${TFVARS_BLOB}" > terraform.tfvars
+            echo "Usando secret TF_STACK_TFVARS (Environment o repo)."
+          elif [[ -n "${TF_BILLING:-}" ]]; then
+            {
+              echo "billing_account_id = \"${TF_BILLING}\""
+              if [[ -n "${TF_FOLDER:-}" ]]; then
+                echo "folder_id = \"${TF_FOLDER}\""
+              elif [[ -n "${TF_ORG:-}" ]]; then
+                echo "org_id = \"${TF_ORG}\""
+              else
+                echo "::error::Con TF_BILLING_ACCOUNT_ID hace falta TF_GCP_ORG_ID (variable de repo) o TF_GCP_FOLDER_ID si usáis carpeta."
+                exit 1
+              fi
+            } > terraform.tfvars
+            echo "Generado terraform.tfvars desde TF_BILLING_ACCOUNT_ID + org_id o folder_id."
+          else
+            echo "::error::Define TF_STACK_TFVARS (secret) o TF_BILLING_ACCOUNT_ID (secret) + TF_GCP_ORG_ID (var) y, si aplica, TF_GCP_FOLDER_ID."
+            exit 1
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_TERRAFORM_SA_KEY }}
+
+      - name: Terraform init
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="prefix=terraform/env/${{ github.event.inputs.stack }}"
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        if: github.event.inputs.terraform_action == 'plan'
+        run: terraform plan -no-color -input=false
+
+      - name: Terraform apply
+        if: github.event.inputs.terraform_action == 'apply'
         run: terraform apply -auto-approve -no-color -input=false
