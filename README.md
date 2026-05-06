@@ -9,6 +9,32 @@ Incluye: APIs, **Artifact Registry**, **Firebase** (Firestore nativo, Hosting si
 1. **Proyecto seed** (único paso manual fuera de Terraform de ambientes): bucket GCS de estado + SA `terraform-bootstrap` con permisos para crear proyectos bajo vuestra **org** o **carpeta** y gestionar IAM. Ver [terraform/scripts/bootstrap-seed.sh](terraform/scripts/bootstrap-seed.sh).
 2. Variables Terraform por stack: `billing_account_id` y `folder_id` **o** `org_id` (uno de los dos para `google_project`).
 
+### Permisos mínimos adicionales (fuera del seed)
+
+Además del seed, la SA `terraform-bootstrap@<PROJECT_SEED>.iam.gserviceaccount.com` necesita permisos a nivel **Billing Account** y **Org/Folder** para poder crear proyectos nuevos y vincularles facturación.
+
+Ejecutar (con una identidad que sea admin de Billing/Org):
+
+```bash
+# 1) Billing Account: permitir asociar (link) la facturación a proyectos nuevos
+gcloud billing accounts add-iam-policy-binding BILLING_ACCOUNT_ID \
+  --member="serviceAccount:terraform-bootstrap@dp-proj-00-02-seed.iam.gserviceaccount.com" \
+  --role="roles/billing.user"
+
+# 2) Organización: permitir crear proyectos (si usas TF_GCP_ORG_ID / org_id)
+gcloud organizations add-iam-policy-binding ORG_ID_NUMERICO \
+  --member="serviceAccount:terraform-bootstrap@dp-proj-00-02-seed.iam.gserviceaccount.com" \
+  --role="roles/resourcemanager.projectCreator"
+```
+
+Si en lugar de organización creas bajo una **carpeta**, aplica el rol de creación a nivel folder:
+
+```bash
+gcloud resource-manager folders add-iam-policy-binding FOLDER_ID_NUMERICO \
+  --member="serviceAccount:terraform-bootstrap@dp-proj-00-02-seed.iam.gserviceaccount.com" \
+  --role="roles/resourcemanager.projectCreator"
+```
+
 ## Primer uso
 
 ```bash
