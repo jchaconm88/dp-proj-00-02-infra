@@ -45,6 +45,7 @@ gcloud services enable \
   cloudresourcemanager.googleapis.com \
   cloudbilling.googleapis.com \
   firebase.googleapis.com \
+  firebasehosting.googleapis.com \
   --project="${PROJECT_SEED}"
 
 echo "==> 3) Bucket de estado Terraform"
