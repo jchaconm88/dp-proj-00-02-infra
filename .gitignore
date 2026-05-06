@@ -1,0 +1,6 @@
+terraform/scripts/*key*.json
+terraform-bootstrap-key.json
+**/*service-account*.json
+**/*service_account*.json
+.env
+.env.*

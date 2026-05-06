@@ -1,0 +1,11 @@
+# Copiar a terraform.tfvars (no commitear secretos).
+
+billing_account_id = "XXXXXX-XXXXXX-XXXXXX"
+
+# Usa folder_id O org_id (uno con valor).
+folder_id = "123456789012"
+# org_id  = "987654321098"
+
+# Opcional:
+# region                 = "us-central1"
+# firestore_location_id  = "us-central1"
