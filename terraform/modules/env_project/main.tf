@@ -126,8 +126,8 @@ resource "google_project_iam_member" "github_deploy_backend_roles" {
 
 resource "google_service_account_iam_member" "github_deploy_backend_act_as_runtime" {
   service_account_id = google_service_account.runtime.name
-  role                 = "roles/iam.serviceAccountUser"
-  member               = "serviceAccount:${google_service_account.github_deploy_backend.email}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.github_deploy_backend.email}"
 }
 
 locals {

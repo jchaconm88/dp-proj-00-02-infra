@@ -1,12 +1,12 @@
 module "env" {
   source = "../../modules/env_project"
 
-  environment_name        = "qa"
-  billing_account_id      = var.billing_account_id
-  folder_id               = var.folder_id
-  org_id                  = var.org_id
-  region                  = var.region
-  firestore_location_id   = var.firestore_location_id
+  environment_name      = "qa"
+  billing_account_id    = var.billing_account_id
+  folder_id             = var.folder_id
+  org_id                = var.org_id
+  region                = var.region
+  firestore_location_id = var.firestore_location_id
 }
 
 output "project_id" {
