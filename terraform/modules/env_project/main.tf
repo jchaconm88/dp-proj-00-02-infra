@@ -199,3 +199,15 @@ resource "google_artifact_registry_repository" "docker" {
 
   depends_on = [google_project_service.env]
 }
+
+# Cloud Run `gcloud run deploy --source` usa un repo AR administrado (por defecto `cloud-run-source-deploy`)
+# y lo intenta crear si no existe. Pre-crearlo evita requerir `artifactregistry.repositories.create` en CI.
+resource "google_artifact_registry_repository" "cloud_run_source_deploy" {
+  location      = var.region
+  project       = google_project.env.project_id
+  repository_id = "cloud-run-source-deploy"
+  description   = "Repo usado por Cloud Run para despliegues desde código fuente"
+  format        = "DOCKER"
+
+  depends_on = [google_project_service.env]
+}
