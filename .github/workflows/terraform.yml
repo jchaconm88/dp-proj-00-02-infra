@@ -1,8 +1,25 @@
-# Plan/apply manual por stack. Requiere: secret GCP_TERRAFORM_SA_KEY, var TF_STATE_BUCKET,
-# y secret TF_STACK_TFVARS (contenido multilínea del terraform.tfvars del stack).
+# Terraform por ambiente (dev / qa / prd).
+#
+# Automático: push a main → apply en los tres stacks (un job por stack, cada uno con su GitHub Environment).
+# Manual: workflow_dispatch → un solo stack, plan o apply.
+#
+# Requisitos (repo infra):
+#   - Variable: TF_STATE_BUCKET
+#   - Secret: GCP_TERRAFORM_SA_KEY (JSON terraform-bootstrap)
+#   - Por cada Environment dev|qa|prd: opcional protección (revisores) para prd.
+#   - Opción B: secret TF_BILLING_ACCOUNT_ID + variable TF_GCP_ORG_ID (recomendado si creáis proyectos bajo la org).
+#     Opcional: TF_GCP_FOLDER_ID si debe prevalecer una carpeta (si ambas existen, gana folder).
+#   - Opción A: secret TF_STACK_TFVARS (tfvars completos por repo o por Environment).
+#
 name: Terraform infra
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
   workflow_dispatch:
     inputs:
       stack:
@@ -28,14 +45,23 @@ env:
 
 jobs:
   terraform:
-    name: Terraform (${{ inputs.stack }})
+    name: "Terraform (${{ matrix.stack }})"
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [dev, qa, prd]
+    environment: ${{ matrix.stack }}
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.stack == matrix.stack)
+
     defaults:
       run:
-        working-directory: terraform/environments/${{ inputs.stack }}
+        working-directory: terraform/environments/${{ matrix.stack }}
 
     steps:
       - name: Checkout
@@ -48,15 +74,34 @@ jobs:
             exit 1
           fi
 
-      - name: Escribir terraform.tfvars desde secret
+      - name: Escribir terraform.tfvars
         env:
-          TFVARS_CONTENT: ${{ secrets.TF_STACK_TFVARS }}
+          TFVARS_BLOB: ${{ secrets.TF_STACK_TFVARS }}
+          TF_BILLING: ${{ secrets.TF_BILLING_ACCOUNT_ID }}
+          TF_FOLDER: ${{ vars.TF_GCP_FOLDER_ID }}
+          TF_ORG: ${{ vars.TF_GCP_ORG_ID }}
         run: |
-          if [[ -z "${TFVARS_CONTENT:-}" ]]; then
-            echo "::error::Define el secret TF_STACK_TFVARS con el contenido de terraform.tfvars (billing_account_id, folder_id u org_id)."
+          set -euo pipefail
+          if [[ -n "${TFVARS_BLOB:-}" ]]; then
+            printf '%s\n' "${TFVARS_BLOB}" > terraform.tfvars
+            echo "Usando secret TF_STACK_TFVARS (Environment o repo)."
+          elif [[ -n "${TF_BILLING:-}" ]]; then
+            {
+              echo "billing_account_id = \"${TF_BILLING}\""
+              if [[ -n "${TF_FOLDER:-}" ]]; then
+                echo "folder_id = \"${TF_FOLDER}\""
+              elif [[ -n "${TF_ORG:-}" ]]; then
+                echo "org_id = \"${TF_ORG}\""
+              else
+                echo "::error::Con TF_BILLING_ACCOUNT_ID hace falta TF_GCP_ORG_ID (variable de repo) o TF_GCP_FOLDER_ID si usáis carpeta."
+                exit 1
+              fi
+            } > terraform.tfvars
+            echo "Generado terraform.tfvars desde TF_BILLING_ACCOUNT_ID + org_id o folder_id."
+          else
+            echo "::error::Define TF_STACK_TFVARS (secret) o TF_BILLING_ACCOUNT_ID (secret) + TF_GCP_ORG_ID (var) y, si aplica, TF_GCP_FOLDER_ID."
             exit 1
           fi
-          printf '%s\n' "${TFVARS_CONTENT}" > terraform.tfvars
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -73,15 +118,19 @@ jobs:
         run: |
           terraform init -input=false \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
-            -backend-config="prefix=terraform/env/${{ inputs.stack }}"
+            -backend-config="prefix=terraform/env/${{ matrix.stack }}"
 
       - name: Terraform validate
         run: terraform validate
 
       - name: Terraform plan
-        if: inputs.terraform_action == 'plan'
+        if: |
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.terraform_action == 'plan'
         run: terraform plan -no-color -input=false
 
       - name: Terraform apply
-        if: inputs.terraform_action == 'apply'
+        if: |
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply')
         run: terraform apply -auto-approve -no-color -input=false
