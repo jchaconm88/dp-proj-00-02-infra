@@ -53,17 +53,17 @@ variable "runtime_service_account_id" {
 }
 
 variable "github_deploy_backend_id" {
-  type        = string
-  default     = "github-deploy-backend"
+  type    = string
+  default = "github-deploy-backend"
 }
 
 variable "github_deploy_web_id" {
-  type        = string
-  default     = "github-deploy-web"
+  type    = string
+  default = "github-deploy-web"
 }
 
 variable "github_deploy_admin_id" {
-  type        = string
-  default     = "github-deploy-admin"
+  type    = string
+  default = "github-deploy-admin"
 }
 
