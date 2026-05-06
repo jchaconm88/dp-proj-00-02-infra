@@ -135,6 +135,27 @@ resource "google_service_account_iam_member" "github_deploy_backend_act_as_runti
   member             = "serviceAccount:${google_service_account.github_deploy_backend.email}"
 }
 
+# `gcloud run deploy --source` usa Cloud Build. Durante el build/deploy, el servicio de build
+# debe poder "actuar como" (impersonar) la SA runtime especificada en `--service-account`.
+# Dependiendo de la configuración del proyecto, esto puede ser la SA de Cloud Build y/o la
+# Compute default SA (observado en errores: `${project_number}-compute@developer.gserviceaccount.com`).
+locals {
+  cloudbuild_service_account_email = "${google_project.env.number}@cloudbuild.gserviceaccount.com"
+  compute_default_service_account  = "${google_project.env.number}-compute@developer.gserviceaccount.com"
+}
+
+resource "google_service_account_iam_member" "cloudbuild_act_as_runtime" {
+  service_account_id = google_service_account.runtime.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${local.cloudbuild_service_account_email}"
+}
+
+resource "google_service_account_iam_member" "compute_default_act_as_runtime" {
+  service_account_id = google_service_account.runtime.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${local.compute_default_service_account}"
+}
+
 locals {
   github_deploy_web_roles = toset([
     "roles/firebase.admin",
