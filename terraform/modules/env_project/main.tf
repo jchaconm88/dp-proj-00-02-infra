@@ -1,8 +1,13 @@
+locals {
+  folder_id_trim = trimspace(var.folder_id == null ? "" : var.folder_id)
+  org_id_trim    = trimspace(var.org_id == null ? "" : var.org_id)
+}
+
 check "parent_required_for_google_project" {
   assert {
     condition = (
-      length(trimspace(coalesce(var.folder_id, ""))) > 0 ||
-      length(trimspace(coalesce(var.org_id, ""))) > 0
+      length(local.folder_id_trim) > 0 ||
+      length(local.org_id_trim) > 0
     )
     error_message = "Define folder_id o org_id (al menos uno no vacío) para crear el proyecto GCP."
   }
@@ -23,8 +28,8 @@ resource "google_project" "env" {
   name            = "dp-proj-00-02-${var.environment_name}"
   project_id      = local.project_id
   billing_account = var.billing_account_id
-  folder_id       = length(trimspace(coalesce(var.folder_id, ""))) > 0 ? trimspace(var.folder_id) : null
-  org_id          = length(trimspace(coalesce(var.folder_id, ""))) > 0 ? null : trimspace(coalesce(var.org_id, ""))
+  folder_id       = length(local.folder_id_trim) > 0 ? local.folder_id_trim : null
+  org_id          = length(local.folder_id_trim) > 0 ? null : local.org_id_trim
 }
 
 resource "time_sleep" "wait_project_init" {
