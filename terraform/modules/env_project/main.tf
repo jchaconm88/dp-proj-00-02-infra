@@ -156,6 +156,20 @@ resource "google_service_account_iam_member" "compute_default_act_as_runtime" {
   member             = "serviceAccount:${local.compute_default_service_account}"
 }
 
+# El caller (GitHub deploy SA) también necesita permiso para iniciar builds cuando el proyecto
+# usa una build service account por defecto (frecuente: Cloud Build SA o Compute default SA).
+resource "google_service_account_iam_member" "github_deploy_backend_act_as_cloudbuild_sa" {
+  service_account_id = "projects/${google_project.env.project_id}/serviceAccounts/${local.cloudbuild_service_account_email}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.github_deploy_backend.email}"
+}
+
+resource "google_service_account_iam_member" "github_deploy_backend_act_as_compute_default_sa" {
+  service_account_id = "projects/${google_project.env.project_id}/serviceAccounts/${local.compute_default_service_account}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.github_deploy_backend.email}"
+}
+
 locals {
   github_deploy_web_roles = toset([
     "roles/firebase.admin",
