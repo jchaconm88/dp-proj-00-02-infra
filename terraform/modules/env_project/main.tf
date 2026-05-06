@@ -135,33 +135,18 @@ resource "google_service_account_iam_member" "github_deploy_backend_act_as_runti
   member             = "serviceAccount:${google_service_account.github_deploy_backend.email}"
 }
 
-# `gcloud run deploy --source` usa Cloud Build. Durante el build/deploy, el servicio de build
-# debe poder "actuar como" (impersonar) la SA runtime especificada en `--service-account`.
-# Dependiendo de la configuración del proyecto, esto puede ser la SA de Cloud Build y/o la
-# Compute default SA (observado en errores: `${project_number}-compute@developer.gserviceaccount.com`).
+# `gcloud run deploy --source` usa Cloud Build. En GCP, muy a menudo el build se ejecuta con la
+# Compute default SA (`${project_number}-compute@developer.gserviceaccount.com`). En proyectos nuevos,
+# la SA `${project_number}@cloudbuild.gserviceaccount.com` puede no existir inmediatamente; por eso
+# evitamos hardcodearla en Terraform y otorgamos permisos al compute default.
 locals {
-  cloudbuild_service_account_email = "${google_project.env.number}@cloudbuild.gserviceaccount.com"
-  compute_default_service_account  = "${google_project.env.number}-compute@developer.gserviceaccount.com"
-}
-
-resource "google_service_account_iam_member" "cloudbuild_act_as_runtime" {
-  service_account_id = google_service_account.runtime.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${local.cloudbuild_service_account_email}"
+  compute_default_service_account = "${google_project.env.number}-compute@developer.gserviceaccount.com"
 }
 
 resource "google_service_account_iam_member" "compute_default_act_as_runtime" {
   service_account_id = google_service_account.runtime.name
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${local.compute_default_service_account}"
-}
-
-# El caller (GitHub deploy SA) también necesita permiso para iniciar builds cuando el proyecto
-# usa una build service account por defecto (frecuente: Cloud Build SA o Compute default SA).
-resource "google_service_account_iam_member" "github_deploy_backend_act_as_cloudbuild_sa" {
-  service_account_id = "projects/${google_project.env.project_id}/serviceAccounts/${local.cloudbuild_service_account_email}"
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.github_deploy_backend.email}"
 }
 
 resource "google_service_account_iam_member" "github_deploy_backend_act_as_compute_default_sa" {
