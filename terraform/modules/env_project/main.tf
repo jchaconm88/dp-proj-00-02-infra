@@ -118,6 +118,8 @@ locals {
     "roles/storage.admin",
     "roles/artifactregistry.writer",
     "roles/serviceusage.serviceUsageConsumer",
+    # Índices compuestos: `firebase deploy --only firestore:indexes` (pipeline backend).
+    "roles/datastore.indexAdmin",
   ])
 }
 
